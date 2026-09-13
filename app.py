@@ -1,66 +1,44 @@
-from flask import Flask, request, jsonify, send_from_directory
+import streamlit as st
+from PIL import Image
+import tempfile
 import os
-import uuid
+from moviepy.editor import ImageClip, AudioFileClip
 
-app = Flask(__name__)
+st.set_page_config(page_title="AURORAAZAH Studio", page_icon="🌊")
+st.title("🌊 AURORAAZAH Studio")
+st.write("Upload foto + audio = video ngomong")
 
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
+photo = st.file_uploader("1. Upload Foto Kamu", type=["jpg","jpeg","png"])
+audio = st.file_uploader("2. Upload Audio Kamu", type=["mp3","wav","m4a"])
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+if st.button("🚀 GENERATE VIDEO NGOMONG"):
+    if photo and audio:
+        with st.spinner("Lagi bikin video... tunggu 20 detik"):
+            # simpan file sementara
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as f1:
+                f1.write(photo.read())
+                photo_path = f1.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f2:
+                f2.write(audio.read())
+                audio_path = f2.name
+            
+            # bikin video: foto diam + audio
+            try:
+                audioclip = AudioFileClip(audio_path)
+                imgclip = ImageClip(photo_path, duration=audioclip.duration)
+                imgclip = imgclip.set_audio(audioclip)
+                
+                output_path = "/tmp/result.mp4"
+                imgclip.write_videofile(output_path, fps=24, verbose=False, logger=None)
+                
+                st.success("✅ Jadi bang!")
+                st.video(output_path)
+                
+                with open(output_path, "rb") as f:
+                    st.download_button("⬇️ Download Video", f, file_name="auroraazah.mp4")
+            except Exception as e:
+                st.error(f"Error: {e}")
+    else:
+        st.warning("Upload foto & audio dulu!")
 
-
-@app.route("/")
-def index():
-    return send_from_directory(".", "index.html")
-
-
-@app.route("/<path:filename>")
-def files(filename):
-    return send_from_directory(".", filename)
-
-
-@app.route("/create-video", methods=["POST"])
-def create_video():
-
-    photo = request.files.get("photo")
-    audio = request.files.get("audio")
-
-    if not photo or not audio:
-        return jsonify({
-            "error": "Foto dan audio wajib dipilih"
-        }), 400
-
-    uid = str(uuid.uuid4())
-
-    photo_path = os.path.join(
-        UPLOAD_FOLDER,
-        uid + "_photo.jpg"
-    )
-
-    audio_path = os.path.join(
-        UPLOAD_FOLDER,
-        uid + "_audio.mp3"
-    )
-
-    photo.save(photo_path)
-    audio.save(audio_path)
-
-    # ==========================================
-    # TEMPAT AI LIP-SYNC AKAN DIPASANG
-    # ==========================================
-
-    return jsonify({
-        "message": "Foto dan audio berhasil diterima",
-        "photo": photo_path,
-        "audio": audio_path
-    })
-
-
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=True
-    )
+st.caption("Versi 1 - Foto + Audio. Versi 2 nanti pakai Wav2Lip biar bibir gerak.")
